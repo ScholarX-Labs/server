@@ -5,7 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { DbService } from '../db/db.service';
-import { courses, subscriptions, users } from '../db/schema';
+import { courses, subscriptions, users } from '../db/schema/index';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 import {
@@ -23,6 +23,22 @@ export class CoursesService {
     const l = Math.max(limit || 3, 1);
     const offset = (p - 1) * l;
     return { page: p, limit: l, offset };
+  }
+
+  private mapCourseToFrontend(course: any, isSubscribed: boolean = false) {
+    return {
+      ...course,
+      thumbnail: course.imageUrl,
+      price: course.currentPrice,
+      isPublished: course.status === 'active',
+      instructor: course.instructor ? {
+        id: course.instructor.id,
+        name: course.instructor.name,
+        avatar: course.instructor.avatar,
+        title: course.instructor.title,
+      } : undefined,
+      isSubscribed,
+    };
   }
 
   async createCourse(
@@ -76,6 +92,9 @@ export class CoursesService {
       where: whereClause,
       limit,
       offset,
+      with: {
+        instructor: true,
+      },
     });
 
     // Check subscriptions if userId is provided
@@ -101,8 +120,12 @@ export class CoursesService {
       }));
     }
 
+    const formattedItems = itemsWithSubscription.map(c => 
+      this.mapCourseToFrontend(c, c.isSubscribed)
+    );
+
     return {
-      items: itemsWithSubscription,
+      items: formattedItems,
       pagination: {
         currentPage: page,
         totalPages,
@@ -148,10 +171,15 @@ export class CoursesService {
       where: whereClause,
       limit,
       offset,
+      with: {
+        instructor: true,
+      },
     });
 
+    const formattedItems = items.map(c => this.mapCourseToFrontend(c, false));
+
     return {
-      items,
+      items: formattedItems,
       pagination: {
         currentPage: page,
         totalPages,
@@ -165,6 +193,9 @@ export class CoursesService {
   async getCourseById(id: string, userId?: string) {
     const course = await this.dbService.db.query.courses.findFirst({
       where: and(eq(courses.id, id), eq(courses.status, 'active')),
+      with: {
+        instructor: true,
+      },
     });
 
     if (!course) {
@@ -183,7 +214,7 @@ export class CoursesService {
       isSubscribed = !!sub;
     }
 
-    return { ...course, isSubscribed };
+    return this.mapCourseToFrontend(course, isSubscribed);
   }
 
   async updateCourse(
@@ -285,7 +316,7 @@ export class CoursesService {
       const [updatedCourse] = await tx
         .update(courses)
         .set({
-          subscriberCount: sql`${courses.subscriberCount} + 1`,
+          studentsCount: sql`${courses.studentsCount} + 1`,
           updatedAt: new Date(),
         })
         .where(eq(courses.id, courseId))

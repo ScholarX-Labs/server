@@ -9,8 +9,16 @@ import {
   Min,
   IsUUID,
   IsInt,
+  IsBoolean,
+  IsArray,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
+
+export enum CourseLevel {
+  BEGINNER = 'Beginner',
+  INTERMEDIATE = 'Intermediate',
+  ADVANCED = 'Advanced',
+}
 
 export enum CourseCategory {
   FEATURED = 'Featured',
@@ -49,7 +57,36 @@ export class CreateCourseDto {
   @IsNumber()
   @Min(0)
   @Type(() => Number)
-  oldPrice?: number;
+  originalPrice?: number;
+
+  @IsOptional()
+  @IsString()
+  slug?: string;
+
+  @IsOptional()
+  @IsString()
+  videoPreviewUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isBestseller?: boolean;
+
+  @IsOptional()
+  @IsString()
+  urgencyText?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @IsOptional()
+  @IsEnum(CourseLevel)
+  level?: CourseLevel;
+
+  @IsOptional()
+  @IsString()
+  duration?: string;
 
   @IsOptional()
   @IsUUID()
