@@ -6,7 +6,7 @@ import {
   uuid,
   index,
 } from 'drizzle-orm/pg-core';
-import { users } from './users';
+import { users } from './auth/users';
 import { courses } from './courses';
 import { coursesSchema } from './namespaces';
 

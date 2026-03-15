@@ -9,7 +9,7 @@ import {
   jsonb,
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
-import { users } from './users';
+import { users } from './auth/users';
 import { lessons } from './lessons';
 import { coursesSchema } from './namespaces';
 
