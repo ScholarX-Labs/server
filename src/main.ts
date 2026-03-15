@@ -10,6 +10,15 @@ import { HttpStatus } from '@nestjs/common';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
 
+  app.enableCors({
+    origin: process.env.CORS_ORIGIN?.split(',').map((v) => v.trim()) ?? [
+      'http://localhost:3000',
+    ],
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Accept'],
+    credentials: true,
+  });
+
   // Hand off NestJS internal logs to pino
   app.useLogger(app.get(Logger));
 
