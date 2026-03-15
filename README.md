@@ -74,6 +74,8 @@ With Mau, you can deploy your application in just a few clicks, allowing you to 
 
 Check out a few resources that may come in handy when working with NestJS:
 
+- Frontend handoff guide for schema namespaces and auth decoupling: [docs/frontend-nextjs-schema-auth-guide.md](docs/frontend-nextjs-schema-auth-guide.md)
+
 - Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
 - For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
 - To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
