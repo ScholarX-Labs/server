@@ -44,14 +44,22 @@ describe('CoursesController', () => {
 
     await controller.findBySlug('slug-1', 'user-1');
 
-    expect(coursesService.getCourseBySlug).toHaveBeenCalledWith('slug-1', 'user-1');
+    expect(coursesService.getCourseBySlug).toHaveBeenCalledWith(
+      'slug-1',
+      'user-1',
+    );
   });
 
   it('forwards request id on enroll free endpoint', async () => {
     const req = { headers: { 'x-request-id': 'req-1' } } as any;
     coursesService.enrollFree.mockResolvedValue({ success: true });
 
-    await controller.enrollFree('2b08f7f9-cd0c-4cc9-b4e9-fb8f4ecbe412', 'user-1', { idempotencyKey: 'idem-1', sourceSurface: 'course_card' }, req);
+    await controller.enrollFree(
+      '2b08f7f9-cd0c-4cc9-b4e9-fb8f4ecbe412',
+      'user-1',
+      { idempotencyKey: 'idem-1', sourceSurface: 'course_card' },
+      req,
+    );
 
     expect(coursesService.enrollFree).toHaveBeenCalledWith(
       '2b08f7f9-cd0c-4cc9-b4e9-fb8f4ecbe412',
@@ -63,12 +71,18 @@ describe('CoursesController', () => {
   it('delegates paid/application init endpoints to service', async () => {
     const req = { headers: { 'x-request-id': 'req-2' } } as any;
     coursesService.initPaidEnrollment.mockResolvedValue({ success: true });
-    coursesService.initApplicationEnrollment.mockResolvedValue({ success: true });
+    coursesService.initApplicationEnrollment.mockResolvedValue({
+      success: true,
+    });
 
     await controller.initPaidEnrollment(
       '2b08f7f9-cd0c-4cc9-b4e9-fb8f4ecbe412',
       'user-1',
-      { idempotencyKey: 'idem-2', sourceSurface: 'course_card', returnUrl: 'https://example.com' },
+      {
+        idempotencyKey: 'idem-2',
+        sourceSurface: 'course_card',
+        returnUrl: 'https://example.com',
+      },
       req,
     );
     await controller.initApplicationEnrollment(

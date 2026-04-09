@@ -72,12 +72,14 @@ export class CoursesService {
       thumbnail: course.imageUrl,
       price: course.currentPrice,
       isPublished: course.status === 'active',
-      instructor: course.instructor ? {
-        id: course.instructor.id,
-        name: course.instructor.name,
-        avatar: course.instructor.avatar,
-        title: course.instructor.title,
-      } : undefined,
+      instructor: course.instructor
+        ? {
+            id: course.instructor.id,
+            name: course.instructor.name,
+            avatar: course.instructor.avatar,
+            title: course.instructor.title,
+          }
+        : undefined,
       isSubscribed,
     };
   }
@@ -161,8 +163,8 @@ export class CoursesService {
       }));
     }
 
-    const formattedItems = itemsWithSubscription.map(c => 
-      this.mapCourseToFrontend(c, c.isSubscribed)
+    const formattedItems = itemsWithSubscription.map((c) =>
+      this.mapCourseToFrontend(c, c.isSubscribed),
     );
 
     return {
@@ -217,7 +219,7 @@ export class CoursesService {
       },
     });
 
-    const formattedItems = items.map(c => this.mapCourseToFrontend(c, false));
+    const formattedItems = items.map((c) => this.mapCourseToFrontend(c, false));
 
     return {
       items: formattedItems,
@@ -404,7 +406,11 @@ export class CoursesService {
     });
   }
 
-  async enrollFree(courseId: string, userId: string, meta: EnrollmentRequestMeta) {
+  async enrollFree(
+    courseId: string,
+    userId: string,
+    meta: EnrollmentRequestMeta,
+  ) {
     return await this.dbService.db.transaction(async (tx) => {
       const course = await tx.query.courses.findFirst({
         where: and(eq(courses.id, courseId), eq(courses.status, 'active')),

@@ -46,16 +46,22 @@ describe('CoursesService', () => {
           }),
         },
         users: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'user-1', isBlocked: false }),
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'user-1', isBlocked: false }),
         },
         subscriptions: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'sub-1', isActive: true }),
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'sub-1', isActive: true }),
         },
       },
       update: jest.fn(),
       insert: jest.fn(),
     };
-    mockDbService.db.transaction.mockImplementation(async (callback: any) => callback(tx));
+    mockDbService.db.transaction.mockImplementation(async (callback: any) =>
+      callback(tx),
+    );
 
     const result = await service.enrollFree('course-1', 'user-1', {
       requestId: 'req-1',
@@ -81,7 +87,9 @@ describe('CoursesService', () => {
           }),
         },
         users: {
-          findFirst: jest.fn().mockResolvedValue({ id: 'user-1', isBlocked: false }),
+          findFirst: jest
+            .fn()
+            .mockResolvedValue({ id: 'user-1', isBlocked: false }),
         },
         subscriptions: {
           findFirst: jest.fn().mockResolvedValue(null),
@@ -90,7 +98,9 @@ describe('CoursesService', () => {
       update: jest.fn(),
       insert: jest.fn(),
     };
-    mockDbService.db.transaction.mockImplementation(async (callback: any) => callback(tx));
+    mockDbService.db.transaction.mockImplementation(async (callback: any) =>
+      callback(tx),
+    );
 
     await expect(
       service.enrollFree('course-2', 'user-1', {
