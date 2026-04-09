@@ -12,6 +12,7 @@ import {
   UploadedFile,
   Put,
   ParseUUIDPipe,
+  Req,
 } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { CoursesService } from './courses.service';
@@ -27,6 +28,10 @@ import {
 } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Request } from 'express';
+import { EnrollFreeDto } from './dto/enroll-free.dto';
+import { EnrollPaidInitDto } from './dto/enroll-paid-init.dto';
+import { EnrollApplicationInitDto } from './dto/enroll-application-init.dto';
 
 // For simplicity, defining a basic mock user decorator.
 // In a real app, you'd extract this from the request via `@Req() req` or a custom `@User()` decorator.
@@ -41,6 +46,15 @@ export const GetUserId = createParamDecorator(
 @Controller('courses')
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
+
+  private getRequestId(req: Request): string {
+    const headerValue = req.headers['x-request-id'];
+    if (typeof headerValue === 'string' && headerValue.trim().length > 0) {
+      return headerValue;
+    }
+
+    return 'request-id-unavailable';
+  }
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -97,6 +111,12 @@ export class CoursesController {
     return this.coursesService.searchCourses(query);
   }
 
+  @Get('slug/:slug')
+  @UseGuards(OptionalJwtAuthGuard)
+  findBySlug(@Param('slug') slug: string, @GetUserId() userId?: string) {
+    return this.coursesService.getCourseBySlug(slug, userId);
+  }
+
   @Get(':id/subscription-status')
   @UseGuards(JwtAuthGuard)
   checkSubscriptionStatus(
@@ -108,8 +128,61 @@ export class CoursesController {
 
   @Post(':id/enroll')
   @UseGuards(JwtAuthGuard)
-  enroll(@Param('id', ParseUUIDPipe) id: string, @GetUserId() userId: string) {
-    return this.coursesService.enrollUserToCourse(id, userId);
+  enroll(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserId() userId: string,
+    @Req() req: Request,
+  ) {
+    return this.coursesService.enrollFree(id, userId, {
+      requestId: this.getRequestId(req),
+    });
+  }
+
+  @Post(':id/enroll/free')
+  @UseGuards(JwtAuthGuard)
+  enrollFree(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserId() userId: string,
+    @Body() body: EnrollFreeDto,
+    @Req() req: Request,
+  ) {
+    return this.coursesService.enrollFree(id, userId, {
+      idempotencyKey: body.idempotencyKey,
+      sourceSurface: body.sourceSurface,
+      requestId: this.getRequestId(req),
+    });
+  }
+
+  @Post(':id/enroll/paid/init')
+  @UseGuards(JwtAuthGuard)
+  initPaidEnrollment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserId() userId: string,
+    @Body() body: EnrollPaidInitDto,
+    @Req() req: Request,
+  ) {
+    return this.coursesService.initPaidEnrollment(id, userId, {
+      idempotencyKey: body.idempotencyKey,
+      sourceSurface: body.sourceSurface,
+      returnUrl: body.returnUrl,
+      requestId: this.getRequestId(req),
+    });
+  }
+
+  @Post(':id/enroll/application/init')
+  @UseGuards(JwtAuthGuard)
+  initApplicationEnrollment(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUserId() userId: string,
+    @Body() body: EnrollApplicationInitDto,
+    @Req() req: Request,
+  ) {
+    return this.coursesService.initApplicationEnrollment(id, userId, {
+      idempotencyKey: body.idempotencyKey,
+      sourceSurface: body.sourceSurface,
+      applicantSeed: body.applicantSeed,
+      requestId: this.getRequestId(req),
+    });
   }
 
   @Get(':id')

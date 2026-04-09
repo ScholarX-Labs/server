@@ -23,6 +23,10 @@ export enum CourseLevel {
 export enum CourseCategory {
   FEATURED = 'Featured',
   SCHOLARX = 'ScholarX',
+  ENGINEERING = 'Engineering',
+  DESIGN = 'Design',
+  BACKEND = 'Backend',
+  SYSTEMS = 'Systems',
 }
 
 export enum CourseStatus {
@@ -79,6 +83,10 @@ export class CreateCourseDto {
   @IsArray()
   @IsString({ each: true })
   tags?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  requiresForm?: boolean;
 
   @IsOptional()
   @IsEnum(CourseLevel)

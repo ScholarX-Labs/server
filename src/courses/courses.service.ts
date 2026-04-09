@@ -14,9 +14,50 @@ import {
 } from './dto/pagination-query.dto';
 import { and, eq, ilike, count, sql } from 'drizzle-orm';
 
+interface EnrollmentRequestMeta {
+  requestId: string;
+  idempotencyKey?: string;
+  sourceSurface?: string;
+}
+
+interface PaidInitMeta extends EnrollmentRequestMeta {
+  returnUrl?: string;
+}
+
+interface ApplicationInitMeta extends EnrollmentRequestMeta {
+  applicantSeed?: Record<string, unknown>;
+}
+
 @Injectable()
 export class CoursesService {
   constructor(private readonly dbService: DbService) {}
+
+  private throwStructuredBadRequest(code: string, message: string): never {
+    throw new BadRequestException({
+      error: {
+        code,
+        message,
+      },
+    });
+  }
+
+  private throwStructuredNotFound(code: string, message: string): never {
+    throw new NotFoundException({
+      error: {
+        code,
+        message,
+      },
+    });
+  }
+
+  private throwStructuredForbidden(code: string, message: string): never {
+    throw new ForbiddenException({
+      error: {
+        code,
+        message,
+      },
+    });
+  }
 
   private parsePagination(page?: number, limit?: number) {
     const p = Math.max(page || 1, 1);
@@ -217,6 +258,33 @@ export class CoursesService {
     return this.mapCourseToFrontend(course, isSubscribed);
   }
 
+  async getCourseBySlug(slug: string, userId?: string) {
+    const course = await this.dbService.db.query.courses.findFirst({
+      where: and(eq(courses.slug, slug), eq(courses.status, 'active')),
+      with: {
+        instructor: true,
+      },
+    });
+
+    if (!course) {
+      this.throwStructuredNotFound('course_not_found', 'Course not found');
+    }
+
+    let isSubscribed = false;
+    if (userId) {
+      const sub = await this.dbService.db.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, userId),
+          eq(subscriptions.courseId, course.id),
+          eq(subscriptions.isActive, true),
+        ),
+      });
+      isSubscribed = !!sub;
+    }
+
+    return this.mapCourseToFrontend(course, isSubscribed);
+  }
+
   async updateCourse(
     id: string,
     updateDto: UpdateCourseDto,
@@ -336,13 +404,175 @@ export class CoursesService {
     });
   }
 
+  async enrollFree(courseId: string, userId: string, meta: EnrollmentRequestMeta) {
+    return await this.dbService.db.transaction(async (tx) => {
+      const course = await tx.query.courses.findFirst({
+        where: and(eq(courses.id, courseId), eq(courses.status, 'active')),
+      });
+      if (!course) {
+        this.throwStructuredNotFound('course_not_found', 'Course not found');
+      }
+
+      const user = await tx.query.users.findFirst({
+        where: eq(users.id, userId),
+      });
+
+      if (!user) {
+        this.throwStructuredNotFound('auth_required', 'User not found');
+      }
+
+      if (user.isBlocked) {
+        this.throwStructuredForbidden('validation_failure', 'User is blocked');
+      }
+
+      if (course.currentPrice > 0) {
+        this.throwStructuredBadRequest(
+          'payment_unavailable',
+          'This course requires paid enrollment initialization',
+        );
+      }
+
+      const existingSub = await tx.query.subscriptions.findFirst({
+        where: and(
+          eq(subscriptions.userId, userId),
+          eq(subscriptions.courseId, courseId),
+          eq(subscriptions.isActive, true),
+        ),
+      });
+
+      if (existingSub) {
+        return {
+          success: true,
+          code: 'already_enrolled',
+          message: 'You are already enrolled in this course',
+          requestId: meta.requestId,
+          data: {
+            course: {
+              id: course.id,
+              studentsCount: course.studentsCount,
+            },
+            userId,
+            nextAction: 'resume_learning',
+          },
+        };
+      }
+
+      const [updatedCourse] = await tx
+        .update(courses)
+        .set({
+          studentsCount: sql`${courses.studentsCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(eq(courses.id, courseId))
+        .returning();
+
+      await tx.insert(subscriptions).values({
+        userId,
+        courseId,
+        amount: 0,
+        status: 'active',
+        isActive: true,
+        paymentId: meta.idempotencyKey ?? 'free-enrollment',
+      });
+
+      return {
+        success: true,
+        code: 'enrollment_succeeded',
+        message: 'Enrollment successful',
+        requestId: meta.requestId,
+        data: {
+          course: {
+            id: updatedCourse.id,
+            studentsCount: updatedCourse.studentsCount,
+          },
+          userId,
+          nextAction: 'resume_learning',
+        },
+      };
+    });
+  }
+
+  async initPaidEnrollment(
+    courseId: string,
+    userId: string,
+    meta: PaidInitMeta,
+  ) {
+    const course = await this.dbService.db.query.courses.findFirst({
+      where: and(eq(courses.id, courseId), eq(courses.status, 'active')),
+    });
+
+    if (!course) {
+      this.throwStructuredNotFound('course_not_found', 'Course not found');
+    }
+
+    if (course.currentPrice <= 0) {
+      this.throwStructuredBadRequest(
+        'validation_failure',
+        'Paid enrollment is not available for this course',
+      );
+    }
+
+    const checkoutUrl =
+      meta.returnUrl && meta.returnUrl.length > 0
+        ? `${meta.returnUrl}${meta.returnUrl.includes('?') ? '&' : '?'}checkout=1&courseId=${course.id}`
+        : `/checkout?courseId=${course.id}`;
+
+    return {
+      success: true,
+      code: 'paid_enrollment_initialized',
+      message: 'Paid enrollment initialized',
+      requestId: meta.requestId,
+      data: {
+        courseId: course.id,
+        userId,
+        checkoutUrl,
+        nextAction: 'checkout',
+      },
+    };
+  }
+
+  async initApplicationEnrollment(
+    courseId: string,
+    userId: string,
+    meta: ApplicationInitMeta,
+  ) {
+    const course = await this.dbService.db.query.courses.findFirst({
+      where: and(eq(courses.id, courseId), eq(courses.status, 'active')),
+    });
+
+    if (!course) {
+      this.throwStructuredNotFound('course_not_found', 'Course not found');
+    }
+
+    if (!course.requiresForm) {
+      this.throwStructuredBadRequest(
+        'validation_failure',
+        'This course does not require an application',
+      );
+    }
+
+    return {
+      success: true,
+      code: 'application_enrollment_initialized',
+      message: 'Application enrollment initialized',
+      requestId: meta.requestId,
+      data: {
+        courseId: course.id,
+        userId,
+        applicationUrl: `/courses/${course.slug ?? course.id}?intent=enroll&flow=application`,
+        nextAction: 'application',
+        applicantSeed: meta.applicantSeed ?? null,
+      },
+    };
+  }
+
   async checkSubscriptionStatus(courseId: string, userId: string) {
     const course = await this.dbService.db.query.courses.findFirst({
       where: eq(courses.id, courseId),
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      this.throwStructuredNotFound('course_not_found', 'Course not found');
     }
 
     const user = await this.dbService.db.query.users.findFirst({
@@ -350,7 +580,7 @@ export class CoursesService {
     });
 
     if (user && user.isBlocked) {
-      throw new ForbiddenException('User is blocked');
+      this.throwStructuredForbidden('validation_failure', 'User is blocked');
     }
 
     const sub = await this.dbService.db.query.subscriptions.findFirst({
