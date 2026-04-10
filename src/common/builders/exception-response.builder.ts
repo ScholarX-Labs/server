@@ -59,7 +59,7 @@ export class ExceptionResponseBuilder {
     let errorCode: ErrorCodeDefinition;
     let httpStatus: number;
     let message: string;
-    let details: ValidationErrorDetail[] | null = null;
+    let details: ValidationErrorDetail[] | Record<string, unknown> | null = null;
     let stack: string | undefined;
 
     // ── 1. AppException — typed, pre-set error code ───────────────────────
@@ -99,11 +99,24 @@ export class ExceptionResponseBuilder {
         errorCode =
           HTTP_STATUS_TO_ERROR_CODE[httpStatus as HttpStatus] ??
           ERROR_CODES.INTERNAL_SERVER_ERROR;
+
+        const rawResponse = response as Record<string, unknown>;
+
+        // Attempt to extract message from common NestJS and domain structures
         message =
           typeof response === 'string'
             ? response
-            : (response as Record<string, unknown>)?.message?.toString() ??
-              'An error occurred.';
+            : ((rawResponse.error as Record<string, unknown>)?.message?.toString() ??
+              rawResponse?.message?.toString() ??
+              'An error occurred.');
+
+        // Attempt to extract details if they exist on the response object
+        if (
+          typeof rawResponse.details === 'object' &&
+          rawResponse.details !== null
+        ) {
+          details = rawResponse.details as Record<string, unknown>;
+        }
       }
     }
     // ── 4. Unknown / unhandled error ─────────────────────────────────────

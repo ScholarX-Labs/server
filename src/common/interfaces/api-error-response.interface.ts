@@ -11,8 +11,8 @@ export interface IApiErrorBody {
   /** Numeric code for machine consumption, e.g. 1001 */
   numericCode: number;
   message: string;
-  /** Populated for VALIDATION_ERROR only, null for all other errors */
-  details: ValidationErrorDetail[] | null;
+  /** Actionable error details (e.g. validation fields, account status) */
+  details: ValidationErrorDetail[] | Record<string, unknown> | null;
   /** Present in development mode only — never in production */
   stack?: string;
 }

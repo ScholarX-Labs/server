@@ -15,13 +15,17 @@ import type { ValidationErrorDetail } from '../interfaces';
  */
 export class AppException extends HttpException {
   readonly errorCode: ErrorCodeDefinition;
-  readonly details: ValidationErrorDetail[] | undefined;
+  readonly details:
+    | ValidationErrorDetail[]
+    | Record<string, unknown>
+    | null
+    | undefined;
 
   constructor(
     errorCode: ErrorCodeDefinition,
     httpStatus: HttpStatus,
     message?: string,
-    details?: ValidationErrorDetail[],
+    details: ValidationErrorDetail[] | Record<string, unknown> | null = null,
     options?: { cause?: Error },
   ) {
     super(message ?? errorCode.code, httpStatus, options);

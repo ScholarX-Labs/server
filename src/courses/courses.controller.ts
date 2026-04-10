@@ -68,7 +68,6 @@ export class CoursesController {
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)
-  @UseInterceptors(CacheInterceptor)
   findAll(
     @Query() query: CoursePaginationQueryDto,
     @GetUserId() userId?: string,
@@ -78,7 +77,6 @@ export class CoursesController {
 
   @Get('featured')
   @UseGuards(OptionalJwtAuthGuard)
-  @UseInterceptors(CacheInterceptor)
   findFeatured(
     @Query() query: CoursePaginationQueryDto,
     @GetUserId() userId?: string,
@@ -92,7 +90,6 @@ export class CoursesController {
 
   @Get('scholarx')
   @UseGuards(OptionalJwtAuthGuard)
-  @UseInterceptors(CacheInterceptor)
   findScholarX(
     @Query() query: CoursePaginationQueryDto,
     @GetUserId() userId?: string,

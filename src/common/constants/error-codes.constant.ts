@@ -34,6 +34,10 @@ export const ERROR_CODES = {
   COURSE_NOT_FOUND: { code: 'COURSE_NOT_FOUND', numericCode: 1001 },
   COURSE_ALREADY_EXISTS: { code: 'COURSE_ALREADY_EXISTS', numericCode: 1002 },
   COURSE_INACTIVE: { code: 'COURSE_INACTIVE', numericCode: 1003 },
+  ENROLLMENT_INCOMPATIBLE: {
+    code: 'ENROLLMENT_INCOMPATIBLE',
+    numericCode: 1004,
+  },
 
   // ── 2xxx Users ────────────────────────────────────────────────────────────
   USER_NOT_FOUND: { code: 'USER_NOT_FOUND', numericCode: 2001 },

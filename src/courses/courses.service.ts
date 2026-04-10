@@ -1,9 +1,6 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { AppException } from '../common/exceptions/app.exception';
+import { ERROR_CODES } from '../common/constants/error-codes.constant';
 import { DbService } from '../db/db.service';
 import { courses, subscriptions, users } from '../db/schema/index';
 import { CreateCourseDto } from './dto/create-course.dto';
@@ -32,31 +29,36 @@ interface ApplicationInitMeta extends EnrollmentRequestMeta {
 export class CoursesService {
   constructor(private readonly dbService: DbService) {}
 
-  private throwStructuredBadRequest(code: string, message: string): never {
-    throw new BadRequestException({
-      error: {
-        code,
-        message,
-      },
-    });
+  private throwStructuredBadRequest(
+    code: { code: string; numericCode: number },
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new AppException(code, HttpStatus.BAD_REQUEST, message, details);
   }
 
-  private throwStructuredNotFound(code: string, message: string): never {
-    throw new NotFoundException({
-      error: {
-        code,
-        message,
-      },
-    });
+  private throwStructuredNotFound(
+    code: { code: string; numericCode: number },
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new AppException(code, HttpStatus.NOT_FOUND, message, details);
   }
 
-  private throwStructuredForbidden(code: string, message: string): never {
-    throw new ForbiddenException({
-      error: {
-        code,
-        message,
-      },
-    });
+  private throwStructuredForbidden(
+    code: { code: string; numericCode: number },
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new AppException(code, HttpStatus.FORBIDDEN, message, details);
+  }
+
+  private throwStructuredUnauthorized(
+    code: { code: string; numericCode: number },
+    message: string,
+    details?: Record<string, unknown>,
+  ): never {
+    throw new AppException(code, HttpStatus.UNAUTHORIZED, message, details);
   }
 
   private parsePagination(page?: number, limit?: number) {
@@ -189,7 +191,10 @@ export class CoursesService {
 
   async searchCourses(queryDto: SearchCourseDto) {
     if (!queryDto.title) {
-      throw new BadRequestException('Search title is required');
+      this.throwStructuredBadRequest(
+        ERROR_CODES.BAD_REQUEST,
+        'Search title is required',
+      );
     }
 
     const { page, limit, offset } = this.parsePagination(
@@ -242,7 +247,10 @@ export class CoursesService {
     });
 
     if (!course) {
-      throw new NotFoundException('Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `The requested course (ID: ${id}) was not found or is currently inactive.`,
+      );
     }
 
     let isSubscribed = false;
@@ -269,7 +277,10 @@ export class CoursesService {
     });
 
     if (!course) {
-      this.throwStructuredNotFound('course_not_found', 'Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `Course with slug '${slug}' not found.`,
+      );
     }
 
     let isSubscribed = false;
@@ -297,7 +308,10 @@ export class CoursesService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `Cannot update course (ID: ${id}): Course not found.`,
+      );
     }
 
     let imageUrl = existing.imageUrl;
@@ -329,7 +343,10 @@ export class CoursesService {
     });
 
     if (!existing) {
-      throw new NotFoundException('Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `Cannot delete course (ID: ${id}): Course not found.`,
+      );
     }
 
     // TODO: Delete image from Cloudinary using existing.imagePublicId
@@ -348,7 +365,10 @@ export class CoursesService {
         where: and(eq(courses.id, courseId), eq(courses.status, 'active')),
       });
       if (!course) {
-        throw new NotFoundException('Course not found');
+        this.throwStructuredNotFound(
+          ERROR_CODES.COURSE_NOT_FOUND,
+          `Course (ID: ${courseId}) not found or inactive.`,
+        );
       }
 
       // 2. Check User (Assuming users table exists and mapped)
@@ -357,11 +377,20 @@ export class CoursesService {
       });
 
       if (!user) {
-        throw new NotFoundException('User not found');
+        this.throwStructuredUnauthorized(
+          ERROR_CODES.UNAUTHORIZED,
+          'Your authentication session is not linked to an active user account.',
+          {
+            userId,
+          },
+        );
       }
 
       if (user.isBlocked) {
-        throw new ForbiddenException('User is blocked');
+        this.throwStructuredForbidden(
+          ERROR_CODES.USER_BLOCKED,
+          'User is blocked.',
+        );
       }
 
       // 3. Check Subscription
@@ -374,7 +403,8 @@ export class CoursesService {
       });
 
       if (existingSub) {
-        throw new BadRequestException(
+        this.throwStructuredBadRequest(
+          ERROR_CODES.CONFLICT,
           'You are already enrolled in this course',
         );
       }
@@ -416,7 +446,11 @@ export class CoursesService {
         where: and(eq(courses.id, courseId), eq(courses.status, 'active')),
       });
       if (!course) {
-        this.throwStructuredNotFound('course_not_found', 'Course not found');
+        this.throwStructuredNotFound(
+          ERROR_CODES.COURSE_NOT_FOUND,
+          `The course you are trying to enroll in (ID: ${courseId}) could not be found or is no longer active.`,
+          { courseId },
+        );
       }
 
       const user = await tx.query.users.findFirst({
@@ -424,16 +458,24 @@ export class CoursesService {
       });
 
       if (!user) {
-        this.throwStructuredNotFound('auth_required', 'User not found');
+        this.throwStructuredUnauthorized(
+          ERROR_CODES.UNAUTHORIZED,
+          'Your authentication session is not linked to an active user account.',
+          { userId },
+        );
       }
 
       if (user.isBlocked) {
-        this.throwStructuredForbidden('validation_failure', 'User is blocked');
+        this.throwStructuredForbidden(
+          ERROR_CODES.USER_BLOCKED,
+          'Your account has been suspended. Please contact support.',
+          { userId, status: 'blocked' },
+        );
       }
 
       if (course.currentPrice > 0) {
         this.throwStructuredBadRequest(
-          'payment_unavailable',
+          ERROR_CODES.BAD_REQUEST,
           'This course requires paid enrollment initialization',
         );
       }
@@ -508,12 +550,15 @@ export class CoursesService {
     });
 
     if (!course) {
-      this.throwStructuredNotFound('course_not_found', 'Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `Course (ID: ${courseId}) not found for enrollment initialization.`,
+      );
     }
 
     if (course.currentPrice <= 0) {
       this.throwStructuredBadRequest(
-        'validation_failure',
+        ERROR_CODES.BAD_REQUEST,
         'Paid enrollment is not available for this course',
       );
     }
@@ -547,12 +592,15 @@ export class CoursesService {
     });
 
     if (!course) {
-      this.throwStructuredNotFound('course_not_found', 'Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        `Course (ID: ${courseId}) not found for application initialization.`,
+      );
     }
 
     if (!course.requiresForm) {
       this.throwStructuredBadRequest(
-        'validation_failure',
+        ERROR_CODES.BAD_REQUEST,
         'This course does not require an application',
       );
     }
@@ -578,7 +626,10 @@ export class CoursesService {
     });
 
     if (!course) {
-      this.throwStructuredNotFound('course_not_found', 'Course not found');
+      this.throwStructuredNotFound(
+        ERROR_CODES.COURSE_NOT_FOUND,
+        'Course not found.',
+      );
     }
 
     const user = await this.dbService.db.query.users.findFirst({
@@ -586,7 +637,10 @@ export class CoursesService {
     });
 
     if (user && user.isBlocked) {
-      this.throwStructuredForbidden('validation_failure', 'User is blocked');
+      this.throwStructuredForbidden(
+        ERROR_CODES.USER_BLOCKED,
+        'User is blocked.',
+      );
     }
 
     const sub = await this.dbService.db.query.subscriptions.findFirst({
